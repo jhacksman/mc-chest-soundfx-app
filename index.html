@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Minecraft Chest Sound Effect</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <h1>Minecraft Chest Sound Effect</h1>
+        <div class="camera-container">
+            <video id="camera" autoplay playsinline></video>
+            <canvas id="lightCanvas" width="1" height="1"></canvas>
+        </div>
+        <div class="controls">
+            <button id="startButton">Start Camera</button>
+            <div class="status">
+                <p>Light Level: <span id="lightLevel">0</span></p>
+                <p>Status: <span id="status">Not active</span></p>
+            </div>
+            <div class="settings">
+                <label for="sensitivity">Sensitivity:</label>
+                <input type="range" id="sensitivity" min="1" max="50" value="10">
+                <span id="sensitivityValue">10</span>
+            </div>
+        </div>
+    </div>
+    <script src="script.js"></script>
+</body>
+</html>
