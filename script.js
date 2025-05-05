@@ -13,7 +13,7 @@ const testSoundButton = document.getElementById('testSoundButton');
 const soundStatus = document.getElementById('soundStatus');
 
 // Canvas context
-let ctx = lightCanvas.getContext('2d');
+let ctx = lightCanvas.getContext('2d', { willReadFrequently: true });
 
 // Variables for camera and light detection
 let stream = null;
@@ -22,12 +22,14 @@ let sensitivity = 10;
 let isChestOpen = false;
 let lightCheckInterval = null;
 let previousLightLevel = 0;
+let isAndroid = /Android/i.test(navigator.userAgent);
+let isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
 
 // Cooldown timer to prevent rapid triggering
 let lastTriggerTime = 0;
 const triggerCooldown = 2000; // 2 seconds cooldown between triggers
 
-const detectionInterval = 500; 
+const detectionInterval = isAndroid ? 1000 : 500;
 
 // Update sensitivity value display
 sensitivitySlider.addEventListener('input', () => {
@@ -35,22 +37,24 @@ sensitivitySlider.addEventListener('input', () => {
     sensitivityValue.textContent = sensitivity;
 });
 
-async function applyMinimalCameraConstraints(track) {
+// Simplified camera constraints for better performance
+async function applyOptimizedCameraConstraints(track) {
     try {
-        // Apply only the most essential constraints
         const constraints = {
-            width: { ideal: 320 },  // Lower resolution for better performance
-            height: { ideal: 240 }
+            width: { ideal: isAndroid ? 160 : 320 },
+            height: { ideal: isAndroid ? 120 : 240 }
         };
         
         await track.applyConstraints(constraints);
         
-        try {
-            await track.applyConstraints({
-                focusMode: "manual"
-            });
-        } catch (e) {
-            // Silently fail if focus mode isn't supported
+        if (!isAndroid) {
+            try {
+                await track.applyConstraints({
+                    focusMode: "manual"
+                });
+            } catch (e) {
+                // Silently fail if focus mode isn't supported
+            }
         }
     } catch (error) {
         // Silently fail if constraints aren't supported
@@ -69,8 +73,8 @@ startButton.addEventListener('click', async () => {
         stream = await navigator.mediaDevices.getUserMedia({
             video: {
                 facingMode: { ideal: 'environment' },
-                width: { ideal: 320 },  // Lower resolution for better performance
-                height: { ideal: 240 }
+                width: { ideal: isAndroid ? 160 : 320 },
+                height: { ideal: isAndroid ? 120 : 240 }
             }
         });
         
@@ -80,7 +84,7 @@ startButton.addEventListener('click', async () => {
         
         const videoTrack = stream.getVideoTracks()[0];
         if (videoTrack) {
-            applyMinimalCameraConstraints(videoTrack);
+            applyOptimizedCameraConstraints(videoTrack);
         }
         
         // Reset variables
@@ -92,15 +96,17 @@ startButton.addEventListener('click', async () => {
         startButton.textContent = 'Stop Camera';
         statusDisplay.textContent = 'Active - monitoring light levels';
         
+        const stabilizationTime = isAndroid ? 300 : 500;
+        
         // Wait a moment for camera to stabilize before starting detection
         setTimeout(() => {
             // Get initial light level
             detectLightLevel();
             previousLightLevel = parseInt(lightLevelDisplay.textContent || '0');
             
-            // Start light detection with increased interval for better performance
+            // Start light detection with optimized interval
             lightCheckInterval = setInterval(detectLightLevel, detectionInterval);
-        }, 500); // Reduced stabilization time for faster startup
+        }, stabilizationTime);
     } catch (error) {
         statusDisplay.textContent = `Error: ${error.message}`;
     }
@@ -123,12 +129,12 @@ function stopCamera() {
     statusDisplay.textContent = 'Not active';
 }
 
-// Detect light level from camera feed
+// Performance-optimized light level detection
 function detectLightLevel() {
     if (!isActive || !camera.videoWidth) return;
     
     try {
-        // Draw current video frame to canvas
+        // Draw current video frame to canvas (1x1 pixel for efficiency)
         ctx.drawImage(camera, 0, 0, 1, 1);
         
         // Get pixel data
@@ -137,8 +143,10 @@ function detectLightLevel() {
         // Calculate brightness (simple average of RGB)
         const brightness = Math.round((pixelData[0] + pixelData[1] + pixelData[2]) / 3);
         
-        // Update display
-        lightLevelDisplay.textContent = brightness;
+        // Update display (only on non-Android or every other frame on Android)
+        if (!isAndroid || Date.now() % 2 === 0) {
+            lightLevelDisplay.textContent = brightness;
+        }
         
         // Check if we're in the cooldown period
         const currentTime = Date.now();
@@ -181,16 +189,17 @@ function unlockAudio() {
         audioContext.resume();
     }
     
-    const silentSound = audioContext.createOscillator();
-    const gainNode = audioContext.createGain();
-    gainNode.gain.value = 0; // Silent
-    silentSound.connect(gainNode);
-    gainNode.connect(audioContext.destination);
-    silentSound.start(0);
-    silentSound.stop(0.001);
+    if (isIOS) {
+        const silentSound = audioContext.createOscillator();
+        const gainNode = audioContext.createGain();
+        gainNode.gain.value = 0; // Silent
+        silentSound.connect(gainNode);
+        gainNode.connect(audioContext.destination);
+        silentSound.start(0);
+        silentSound.stop(0.001);
+    }
 }
 
-// Play chest open sound with iOS compatibility
 function playChestOpenSound() {
     chestOpenSound.currentTime = 0;
     
@@ -198,20 +207,17 @@ function playChestOpenSound() {
     
     if (playPromise !== undefined) {
         playPromise.catch(error => {
-            if (error.name === 'NotAllowedError') {
+            if (error.name === 'NotAllowedError' && isIOS) {
                 unlockAudio();
                 
                 setTimeout(() => {
-                    chestOpenSound.play().catch(() => {
-                        console.log('Still unable to play sound');
-                    });
+                    chestOpenSound.play().catch(() => {});
                 }, 100);
             }
         });
     }
 }
 
-// Play chest close sound with iOS compatibility
 function playChestCloseSound() {
     chestCloseSound.currentTime = 0;
     
@@ -219,13 +225,11 @@ function playChestCloseSound() {
     
     if (playPromise !== undefined) {
         playPromise.catch(error => {
-            if (error.name === 'NotAllowedError') {
+            if (error.name === 'NotAllowedError' && isIOS) {
                 unlockAudio();
                 
                 setTimeout(() => {
-                    chestCloseSound.play().catch(() => {
-                        console.log('Still unable to play sound');
-                    });
+                    chestCloseSound.play().catch(() => {});
                 }, 100);
             }
         });
@@ -251,6 +255,8 @@ window.addEventListener('beforeunload', () => {
 });
 
 function forceIOSAudioUnlock() {
+    if (!isIOS) return;
+    
     unlockAudio();
     
     const originalVolumeOpen = chestOpenSound.volume;
@@ -277,7 +283,9 @@ testSoundButton.addEventListener('click', () => {
     soundStatus.textContent = "Attempting to play sound...";
     soundStatus.style.color = "blue";
     
-    forceIOSAudioUnlock();
+    if (isIOS) {
+        forceIOSAudioUnlock();
+    }
     
     chestOpenSound.currentTime = 0;
     const playPromise = chestOpenSound.play();
@@ -307,5 +315,7 @@ testSoundButton.addEventListener('click', () => {
 });
 
 document.addEventListener('DOMContentLoaded', () => {
-    forceIOSAudioUnlock();
+    if (isIOS) {
+        forceIOSAudioUnlock();
+    }
 });
