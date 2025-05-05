@@ -1,10 +1,5 @@
-// Audio elements for chest sounds
-let chestOpenSound = new Audio();
-let chestCloseSound = new Audio();
-
-// Set audio sources
-chestOpenSound.src = 'sounds/chest_open.ogg';
-chestCloseSound.src = 'sounds/chest_close.ogg';
+const chestOpenSound = document.getElementById('chestOpenSound');
+const chestCloseSound = document.getElementById('chestCloseSound');
 
 // DOM elements
 const startButton = document.getElementById('startButton');
@@ -173,16 +168,66 @@ function detectLightLevel() {
     }
 }
 
-// Play chest open sound
-function playChestOpenSound() {
-    chestOpenSound.currentTime = 0;
-    chestOpenSound.play().catch(() => {});
+let audioContext = null;
+
+function unlockAudio() {
+    if (!audioContext) {
+        audioContext = new (window.AudioContext || window.webkitAudioContext)();
+    }
+    
+    if (audioContext.state === 'suspended') {
+        audioContext.resume();
+    }
+    
+    const silentSound = audioContext.createOscillator();
+    const gainNode = audioContext.createGain();
+    gainNode.gain.value = 0; // Silent
+    silentSound.connect(gainNode);
+    gainNode.connect(audioContext.destination);
+    silentSound.start(0);
+    silentSound.stop(0.001);
 }
 
-// Play chest close sound
+// Play chest open sound with iOS compatibility
+function playChestOpenSound() {
+    chestOpenSound.currentTime = 0;
+    
+    const playPromise = chestOpenSound.play();
+    
+    if (playPromise !== undefined) {
+        playPromise.catch(error => {
+            if (error.name === 'NotAllowedError') {
+                unlockAudio();
+                
+                setTimeout(() => {
+                    chestOpenSound.play().catch(() => {
+                        console.log('Still unable to play sound');
+                    });
+                }, 100);
+            }
+        });
+    }
+}
+
+// Play chest close sound with iOS compatibility
 function playChestCloseSound() {
     chestCloseSound.currentTime = 0;
-    chestCloseSound.play().catch(() => {});
+    
+    const playPromise = chestCloseSound.play();
+    
+    if (playPromise !== undefined) {
+        playPromise.catch(error => {
+            if (error.name === 'NotAllowedError') {
+                unlockAudio();
+                
+                setTimeout(() => {
+                    chestCloseSound.play().catch(() => {
+                        console.log('Still unable to play sound');
+                    });
+                }, 100);
+            }
+        });
+    }
 }
 
 // Handle page visibility changes
