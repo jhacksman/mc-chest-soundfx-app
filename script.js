@@ -9,6 +9,8 @@ const lightLevelDisplay = document.getElementById('lightLevel');
 const statusDisplay = document.getElementById('status');
 const sensitivitySlider = document.getElementById('sensitivity');
 const sensitivityValue = document.getElementById('sensitivityValue');
+const testSoundButton = document.getElementById('testSoundButton');
+const soundStatus = document.getElementById('soundStatus');
 
 // Canvas context
 let ctx = lightCanvas.getContext('2d');
@@ -246,4 +248,64 @@ document.addEventListener('visibilitychange', () => {
 // Clean up on page unload
 window.addEventListener('beforeunload', () => {
     stopCamera();
+});
+
+function forceIOSAudioUnlock() {
+    unlockAudio();
+    
+    const originalVolumeOpen = chestOpenSound.volume;
+    const originalVolumeClose = chestCloseSound.volume;
+    
+    chestOpenSound.volume = 0;
+    chestCloseSound.volume = 0;
+    
+    chestOpenSound.play().catch(() => {});
+    chestCloseSound.play().catch(() => {});
+    
+    setTimeout(() => {
+        chestOpenSound.volume = originalVolumeOpen;
+        chestCloseSound.volume = originalVolumeClose;
+    }, 100);
+    
+    document.body.addEventListener('touchstart', function iosUnlockOnTouch() {
+        unlockAudio();
+        document.body.removeEventListener('touchstart', iosUnlockOnTouch);
+    }, { once: true });
+}
+
+testSoundButton.addEventListener('click', () => {
+    soundStatus.textContent = "Attempting to play sound...";
+    soundStatus.style.color = "blue";
+    
+    forceIOSAudioUnlock();
+    
+    chestOpenSound.currentTime = 0;
+    const playPromise = chestOpenSound.play();
+    
+    if (playPromise !== undefined) {
+        playPromise.then(() => {
+            soundStatus.textContent = "Sound played successfully!";
+            soundStatus.style.color = "green";
+        }).catch(error => {
+            soundStatus.textContent = `Error: ${error.name}. Trying again...`;
+            soundStatus.style.color = "red";
+            
+            unlockAudio();
+            
+            setTimeout(() => {
+                chestOpenSound.currentTime = 0;
+                chestOpenSound.play().then(() => {
+                    soundStatus.textContent = "Sound played on second attempt!";
+                    soundStatus.style.color = "green";
+                }).catch(secondError => {
+                    soundStatus.textContent = `Failed: ${secondError.name}. Try tapping screen first.`;
+                    soundStatus.style.color = "red";
+                });
+            }, 300);
+        });
+    }
+});
+
+document.addEventListener('DOMContentLoaded', () => {
+    forceIOSAudioUnlock();
 });
