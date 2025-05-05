@@ -80,3 +80,25 @@ input[type="range"] {
     vertical-align: middle;
     margin: 0 10px;
 }
+
+.test-sound-container {
+    margin: 30px 0;
+    padding: 15px;
+    background-color: #e8eaf6;
+    border-radius: 4px;
+    display: inline-block;
+}
+
+#testSoundButton {
+    background-color: #4caf50;
+    margin-bottom: 10px;
+}
+
+#testSoundButton:hover {
+    background-color: #388e3c;
+}
+
+#soundStatus {
+    margin: 10px 0 0 0;
+    font-weight: bold;
+}
