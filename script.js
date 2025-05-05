@@ -37,27 +37,65 @@ sensitivitySlider.addEventListener('input', () => {
     sensitivityValue.textContent = sensitivity;
 });
 
-// Simplified camera constraints for better performance
-async function applyOptimizedCameraConstraints(track) {
+async function applyAdvancedCameraConstraints(track) {
     try {
-        const constraints = {
+        // First apply basic resolution constraints for performance
+        const resolutionConstraints = {
             width: { ideal: isAndroid ? 160 : 320 },
             height: { ideal: isAndroid ? 120 : 240 }
         };
         
-        await track.applyConstraints(constraints);
+        await track.applyConstraints(resolutionConstraints);
         
-        if (!isAndroid) {
-            try {
-                await track.applyConstraints({
-                    focusMode: "manual"
-                });
-            } catch (e) {
-                // Silently fail if focus mode isn't supported
+        // Get camera capabilities to check what's supported
+        const capabilities = track.getCapabilities();
+        statusDisplay.textContent = 'Applying camera controls...';
+        
+        const advancedConstraints = {};
+        
+        // Apply focus controls if supported
+        if (capabilities && capabilities.focusMode && 
+            capabilities.focusMode.includes('manual')) {
+            advancedConstraints.focusMode = 'manual';
+            
+            // Set focus distance if supported
+            if (capabilities.focusDistance) {
+                const min = capabilities.focusDistance.min || 0;
+                const max = capabilities.focusDistance.max || 1;
+                // Set to a middle-distance focus that works well for chest detection
+                advancedConstraints.focusDistance = (min + max) / 2;
             }
         }
+        
+        // Apply exposure controls if supported
+        if (capabilities && capabilities.exposureMode && 
+            capabilities.exposureMode.includes('manual')) {
+            advancedConstraints.exposureMode = 'manual';
+            
+            // Set exposure compensation if supported
+            if (capabilities.exposureCompensation) {
+                const min = capabilities.exposureCompensation.min || -2;
+                const max = capabilities.exposureCompensation.max || 2;
+                // Set to a middle value that works well for chest detection
+                advancedConstraints.exposureCompensation = (min + max) / 2;
+            }
+        }
+        
+        // Apply white balance controls if supported
+        if (capabilities && capabilities.whiteBalanceMode && 
+            capabilities.whiteBalanceMode.includes('manual')) {
+            advancedConstraints.whiteBalanceMode = 'manual';
+        }
+        
+        if (Object.keys(advancedConstraints).length > 0) {
+            await track.applyConstraints(advancedConstraints);
+            statusDisplay.textContent = 'Camera controls applied';
+        } else {
+            statusDisplay.textContent = 'Advanced camera controls not supported';
+        }
     } catch (error) {
-        // Silently fail if constraints aren't supported
+        statusDisplay.textContent = `Camera control error: ${error.name}`;
+        console.error('Error applying camera constraints:', error);
     }
 }
 
@@ -69,6 +107,8 @@ startButton.addEventListener('click', async () => {
     }
     
     try {
+        statusDisplay.textContent = 'Starting camera...';
+        
         // Request camera with preference for the environment-facing (back) camera
         stream = await navigator.mediaDevices.getUserMedia({
             video: {
@@ -84,7 +124,10 @@ startButton.addEventListener('click', async () => {
         
         const videoTrack = stream.getVideoTracks()[0];
         if (videoTrack) {
-            applyOptimizedCameraConstraints(videoTrack);
+            const settings = videoTrack.getSettings();
+            console.log('Camera settings:', settings);
+            
+            await applyAdvancedCameraConstraints(videoTrack);
         }
         
         // Reset variables
@@ -94,7 +137,6 @@ startButton.addEventListener('click', async () => {
         // Update UI
         isActive = true;
         startButton.textContent = 'Stop Camera';
-        statusDisplay.textContent = 'Active - monitoring light levels';
         
         const stabilizationTime = isAndroid ? 300 : 500;
         
@@ -106,9 +148,11 @@ startButton.addEventListener('click', async () => {
             
             // Start light detection with optimized interval
             lightCheckInterval = setInterval(detectLightLevel, detectionInterval);
+            statusDisplay.textContent = 'Active - monitoring light levels';
         }, stabilizationTime);
     } catch (error) {
         statusDisplay.textContent = `Error: ${error.message}`;
+        console.error('Camera error:', error);
     }
 });
 
